@@ -17,6 +17,9 @@ body {
 .input:focus { border-color: #8177f5; box-shadow: 0 0 0 3px rgb(99 102 241 / .12); }
 .seg { @apply flex-1 border px-3 py-2 text-sm font-medium transition; border-radius: 9px; border-color: #dce2ec; background: white; color: #475569; }
 .seg:hover { border-color: #b7b2fa; }
+/* Keep the active selection visible even though .seg has a white default background. */
+.seg.border-indigo-600.bg-indigo-600 { border-color: #5145e5; background-color: #5145e5; color: #fff; }
+.seg.border-indigo-600.bg-indigo-600:hover { border-color: #4338ca; background-color: #4338ca; color: #fff; }
 .home-shell { max-width: 1180px; }
 .home-intro { padding: 0 2px; }
 .eyebrow, .section-kicker { color: #64748b; font-size: 10px; font-weight: 750; letter-spacing: .13em; }
