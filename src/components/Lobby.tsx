@@ -48,9 +48,19 @@ async function loadFirstAvailable(sources: string[]): Promise<string> {
   throw new Error("Could not load the browser PDF compressor from any source. Check your connection or try again.");
 }
 
+type PdfViewport = {
+  width: number;
+  height: number;
+  transform: number[];
+  viewBox: number[];
+  scale: number;
+  rotation: number;
+  offsetX: number;
+  offsetY: number;
+};
 type PdfPage = {
-  getViewport: (args: { scale: number }) => { width: number; height: number };
-  render: (args: { canvasContext: CanvasRenderingContext2D; viewport: { width: number; height: number } }) => { promise: Promise<void> };
+  getViewport: (args: { scale: number }) => PdfViewport;
+  render: (args: { canvasContext: CanvasRenderingContext2D; viewport: PdfViewport }) => { promise: Promise<void> };
 };
 type PdfDocument = { numPages: number; getPage: (page: number) => Promise<PdfPage> };
 type PdfJsApi = {
@@ -84,7 +94,7 @@ async function compressPdf(file: File): Promise<File> {
       canvas.height = Math.max(1, Math.floor(viewport.height));
       const context = canvas.getContext("2d");
       if (!context) throw new Error("Your browser could not prepare this PDF for compression.");
-      await page.render({ canvasContext: context, viewport: { width: canvas.width, height: canvas.height } }).promise;
+      await page.render({ canvasContext: context, viewport }).promise;
       const image = canvas.toDataURL("image/jpeg", preset.quality);
       const width = viewport.width / preset.scale;
       const height = viewport.height / preset.scale;
