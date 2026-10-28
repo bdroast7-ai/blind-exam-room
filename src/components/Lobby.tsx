@@ -155,11 +155,11 @@ export default function Lobby() {
   const totalMb = files.reduce((s, f) => s + f.size, 0) / 1024 / 1024;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-5">
+    <div className="lobby-grid grid gap-5 lg:grid-cols-5">
       {/* LEFT: Join */}
-      <form onSubmit={join} className="card p-6 lg:col-span-2">
-        <h2 className="text-lg font-bold">Join an Exam Room</h2>
-        <p className="mt-1 text-sm text-slate-500">Got a code from a friend? Enter it below.</p>
+      <form onSubmit={join} className="card join-card p-5 sm:p-6 lg:col-span-2">
+        <p className="section-kicker">ALREADY HAVE A CODE?</p><h2 className="mt-1 text-xl font-bold tracking-tight">Join an exam</h2>
+        <p className="mt-1 text-sm leading-5 text-slate-500">Enter the six-digit room code shared by your host.</p>
         <label className="mt-5 block text-sm font-medium">Your name</label>
         <input className="input mt-1" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Rafi" maxLength={40} required />
         <label className="mt-4 block text-sm font-medium">6-digit Exam Code</label>
@@ -175,15 +175,15 @@ export default function Lobby() {
         <button className="btn-primary mt-5 w-full" disabled={joining}>
           {joining ? "Joining…" : "Enter Exam Room →"}
         </button>
-        <div className="mt-6 rounded-xl bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
+        <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
           🔒 <b>Zero-spoiler:</b> while the clock runs your phone only receives the questions and options. Answers and
           explanations are unlocked by the server when time hits 00:00 or everyone submits.
         </div>
       </form>
 
       {/* RIGHT: Upload & generate */}
-      <div className="card p-6 lg:col-span-3">
-        <h2 className="text-lg font-bold">Create a Blind Exam</h2>
+      <div className="card create-card p-5 sm:p-6 lg:col-span-3">
+        <p className="section-kicker">HOST A NEW SESSION</p><h2 className="mt-1 text-xl font-bold tracking-tight">Create an exam</h2>
         <p className="mt-1 text-sm text-slate-500">
           Upload this week&apos;s pages from your Bangla, English, Math &amp; GK books. Gemini builds tagged MCQs with
           hidden explanations.
@@ -212,13 +212,13 @@ export default function Lobby() {
             addFiles(e.dataTransfer.files);
           }}
           onClick={() => inputRef.current?.click()}
-          className={`mt-4 cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition ${
+          className={`upload-zone mt-4 cursor-pointer rounded-xl border border-dashed p-6 text-center transition ${
             drag ? "border-indigo-500 bg-indigo-50" : "border-slate-300 hover:border-indigo-400 hover:bg-slate-50"
           }`}
         >
-          <div className="text-3xl">📚</div>
-          <p className="mt-2 text-sm font-semibold">Drag &amp; drop book PDF or page photos</p>
-          <p className="text-xs text-slate-500">PDF, JPG, PNG, WEBP · multiple files OK · max ~19 MB total</p>
+          <div className="upload-icon mx-auto grid h-10 w-10 place-items-center rounded-xl bg-indigo-50 text-xl text-indigo-600">↑</div>
+          <p className="mt-3 text-sm font-semibold">Drop your study pages here</p>
+          <p className="mt-1 text-xs text-slate-500">PDF or image files · Multiple files supported · Up to 19 MB</p>
           <input
             ref={inputRef}
             type="file"
@@ -248,7 +248,7 @@ export default function Lobby() {
           </ul>
         )}
 
-        <div className="mt-5 grid gap-4 sm:grid-cols-3">
+        <div className="settings-grid mt-5 grid gap-4 sm:grid-cols-3">
           <div>
             <p className="mb-1.5 text-sm font-medium">Questions</p>
             <Seg value={count} options={[20, 25] as (20 | 25)[]} onChange={setCount} />
@@ -278,11 +278,11 @@ export default function Lobby() {
                 Reading pages &amp; building MCQs (takes ~30s)...
               </>
             ) : (
-              "⚡ Generate Blind Exam"
+              "Generate exam"
             )}
           </button>
           <button type="button" className="btn-ghost" disabled={generating} onClick={() => generate(true)} title="Use the built-in sample question bank">
-            Try demo questions
+            Use sample questions
           </button>
         </div>
       </div>
