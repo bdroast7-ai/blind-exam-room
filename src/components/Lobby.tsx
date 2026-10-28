@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { saveSession } from "@/lib/ui";
 
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+
 function Seg<T extends string | number>({
   value,
   options,
@@ -102,7 +104,16 @@ export default function Lobby() {
     if (!list) return;
     const raw = Array.from(list).filter((f) => f.type === "application/pdf" || f.type.startsWith("image/"));
     const compressed = await Promise.all(raw.map(compressImage));
-    setFiles((prev) => [...prev, ...compressed]);
+    setFiles((prev) => {
+      const next = [...prev, ...compressed];
+      const size = next.reduce((sum, file) => sum + file.size, 0);
+      if (size > MAX_UPLOAD_BYTES) {
+        setGenErr("Upload is too large for the current server setup. Keep the combined PDF/images under 4 MB, or split/compress the PDF and try again.");
+        return prev;
+      }
+      setGenErr(null);
+      return next;
+    });
   }
 
   async function join(e: React.FormEvent) {
@@ -217,7 +228,7 @@ export default function Lobby() {
         >
           <div className="upload-icon mx-auto grid h-10 w-10 place-items-center rounded-xl bg-indigo-50 text-xl text-indigo-600">↑</div>
           <p className="mt-3 text-sm font-semibold">Drop your study pages here</p>
-          <p className="mt-1 text-xs text-slate-500">PDF or image files · Multiple files supported · Up to 19 MB</p>
+          <p className="mt-1 text-xs text-slate-500">PDF or image files · Multiple files supported · Up to 4 MB total</p>
           <input
             ref={inputRef}
             type="file"
@@ -243,7 +254,7 @@ export default function Lobby() {
                 </button>
               </li>
             ))}
-            <li className={`text-right text-xs ${totalMb > 19 ? "text-red-600" : "text-slate-400"}`}>Total {totalMb.toFixed(1)} MB</li>
+            <li className={`text-right text-xs ${totalMb > 4 ? "text-red-600" : "text-slate-400"}`}>Total {totalMb.toFixed(1)} MB · max 4 MB</li>
           </ul>
         )}
 
