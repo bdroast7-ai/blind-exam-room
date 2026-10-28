@@ -8,7 +8,7 @@ import type { GeneratedQuestion } from "@/lib/types";
 export const dynamic = "force-dynamic";
 export const maxDuration = 180;
 
-const MAX_BYTES = 19 * 1024 * 1024;
+const MAX_BYTES = 3 * 1024 * 1024;
 
 export async function POST(req: Request) {
   let form: FormData;
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     files.push({ mimeType, base64: buf.toString("base64"), name: f.name });
   }
   if (total > MAX_BYTES) {
-    return Response.json({ error: "Upload too large (max ~19 MB total). Compress the PDF/images." }, { status: 413 });
+    return Response.json({ error: "Upload too large (max 3 MB total for this deployment). Compress or split the PDF/images." }, { status: 413 });
   }
   if (!useDemo && files.length === 0) {
     return Response.json({ error: "Upload at least one PDF or image (or use Demo mode)." }, { status: 400 });
