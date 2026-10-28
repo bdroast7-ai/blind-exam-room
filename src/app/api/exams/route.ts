@@ -73,31 +73,39 @@ export async function POST(req: Request) {
 
   const code = await generateCode();
   const token = newToken();
-  const [exam] = await db
-    .insert(exams)
-    .values({
-      code,
-      title,
-      questionCount: qs.length,
-      durationMin,
-      negativeMark,
-      source,
-      hostName,
-    })
-    .returning();
-  await db.insert(questions).values(
-    qs.map((q, i) => ({
-      examId: exam.id,
-      idx: i + 1,
-      subject: q.subject,
-      subTopic: q.subTopic,
-      question: q.question,
-      options: q.options,
-      correctIndex: q.correctIndex,
-      explanation: q.explanation,
-    })),
-  );
-  await db.insert(players).values({ examId: exam.id, name: hostName, token });
+  try {
+    await db.transaction(async (tx) => {
+      const [exam] = await tx
+        .insert(exams)
+        .values({
+          code,
+          title,
+          questionCount: qs.length,
+          durationMin,
+          negativeMark,
+          source,
+          hostName,
+        })
+        .returning();
+
+      await tx.insert(questions).values(
+        qs.map((q, i) => ({
+          examId: exam.id,
+          idx: i + 1,
+          subject: q.subject,
+          subTopic: q.subTopic,
+          question: q.question,
+          options: q.options,
+          correctIndex: q.correctIndex,
+          explanation: q.explanation,
+        })),
+      );
+      await tx.insert(players).values({ examId: exam.id, name: hostName, token });
+    });
+  } catch (error) {
+    console.error("Failed to create exam transaction", error);
+    return Response.json({ error: "Could not save the exam. Please retry." }, { status: 500 });
+  }
 
   return Response.json({ code, token, name: hostName, warning, source });
 }
