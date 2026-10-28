@@ -5,6 +5,82 @@ import { useRouter } from "next/navigation";
 import { saveSession } from "@/lib/ui";
 
 const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
+const PDFJS_SCRIPT = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+const JSPDF_SCRIPT = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js";
+
+function loadScript(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[data-compressor-src="' + src + '"]');
+    if (existing && existing.dataset.loaded === "true") return resolve();
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Could not load PDF compressor.")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.dataset.compressorSrc = src;
+    script.onload = () => { script.dataset.loaded = "true"; resolve(); };
+    script.onerror = () => { script.remove(); reject(new Error("Could not load the browser PDF compressor. Check your internet connection and retry.")); };
+    document.head.appendChild(script);
+  });
+}
+
+type PdfPage = {
+  getViewport: (args: { scale: number }) => { width: number; height: number };
+  render: (args: { canvasContext: CanvasRenderingContext2D; viewport: { width: number; height: number } }) => { promise: Promise<void> };
+};
+type PdfDocument = { numPages: number; getPage: (page: number) => Promise<PdfPage> };
+type PdfJsApi = {
+  GlobalWorkerOptions: { workerSrc: string };
+  getDocument: (args: { data: Uint8Array }) => { promise: Promise<PdfDocument> };
+};
+type JsPdfDoc = {
+  addPage: (format: number[]) => void;
+  addImage: (data: string, format: string, x: number, y: number, width: number, height: number) => void;
+  output: (type: "blob") => Blob;
+};
+type JsPdfApi = { jsPDF: new (options: { unit: string; format: number[]; compress: boolean }) => JsPdfDoc };
+
+async function compressPdf(file: File): Promise<File> {
+  await Promise.all([loadScript(PDFJS_SCRIPT), loadScript(JSPDF_SCRIPT)]);
+  const globals = window as unknown as { pdfjsLib?: PdfJsApi; jspdf?: JsPdfApi };
+  const pdfjs = globals.pdfjsLib;
+  const JsPDF = globals.jspdf && globals.jspdf.jsPDF;
+  if (!pdfjs || !JsPDF) throw new Error("PDF compressor failed to initialize. Reload the page and retry.");
+  pdfjs.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  if (pdf.numPages > 30) throw new Error("This PDF has more than 30 pages. Split it into smaller PDFs and upload each part.");
+  const presets = [{ scale: 1.35, quality: 0.7 }, { scale: 1.05, quality: 0.55 }, { scale: 0.85, quality: 0.45 }];
+  for (const preset of presets) {
+    let output: JsPdfDoc | null = null;
+    for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
+      const page = await pdf.getPage(pageNo);
+      const viewport = page.getViewport({ scale: preset.scale });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.floor(viewport.width));
+      canvas.height = Math.max(1, Math.floor(viewport.height));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Your browser could not prepare this PDF for compression.");
+      await page.render({ canvasContext: context, viewport: { width: canvas.width, height: canvas.height } }).promise;
+      const image = canvas.toDataURL("image/jpeg", preset.quality);
+      const width = viewport.width / preset.scale;
+      const height = viewport.height / preset.scale;
+      if (!output) output = new JsPDF({ unit: "pt", format: [width, height], compress: true });
+      else output.addPage([width, height]);
+      output.addImage(image, "JPEG", 0, 0, width, height);
+      canvas.width = 1;
+      canvas.height = 1;
+    }
+    if (!output) throw new Error("The PDF contains no pages.");
+    const blob = output.output("blob");
+    if (blob.size <= MAX_UPLOAD_BYTES) {
+      return new File([blob], file.name.replace(/\.pdf$/i, "-compressed.pdf"), { type: "application/pdf" });
+    }
+  }
+  throw new Error("This PDF is still over 3 MB after compression. Split it into smaller PDFs or upload fewer pages.");
+}
 
 function Seg<T extends string | number>({
   value,
@@ -52,6 +128,7 @@ export default function Lobby() {
   const [neg, setNeg] = useState<"0" | "0.25" | "0.5">("0.25");
   const [genErr, setGenErr] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [compressing, setCompressing] = useState(false);
   const [drag, setDrag] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -64,54 +141,73 @@ export default function Lobby() {
   }, []);
 
   async function compressImage(file: File): Promise<File> {
-    if (!file.type.startsWith("image/")) return file; // Leave PDFs as-is
-    return new Promise((resolve) => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        const MAX_DIM = 1600;
-        let { width, height } = img;
-        if (width > MAX_DIM || height > MAX_DIM) {
-          if (width > height) {
-            height = Math.round((height * MAX_DIM) / width);
-            width = MAX_DIM;
-          } else {
-            width = Math.round((width * MAX_DIM) / height);
-            height = MAX_DIM;
-          }
-        }
+    if (!file.type.startsWith("image/")) return file;
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error("Could not read image: " + file.name));
+        image.src = url;
+      });
+      let maxDim = 1800;
+      let quality = 0.78;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const ratio = Math.min(1, maxDim / Math.max(img.width, img.height));
         const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
+        canvas.width = Math.max(1, Math.round(img.width * ratio));
+        canvas.height = Math.max(1, Math.round(img.height * ratio));
         const ctx = canvas.getContext("2d");
-        ctx?.drawImage(img, 0, 0, width, height);
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) return resolve(file);
-            resolve(new File([blob], file.name.replace(/\.\w+$/, ".jpg"), { type: "image/jpeg" }));
-          },
-          "image/jpeg",
-          0.75
-        );
-      };
-      img.onerror = () => resolve(file);
-      img.src = url;
-    });
+        if (!ctx) throw new Error("Your browser could not compress this image.");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+        canvas.width = 1;
+        canvas.height = 1;
+        if (blob && (blob.size < file.size || attempt === 3)) {
+          return new File([blob], file.name.replace(/\.\w+$/, ".jpg"), { type: "image/jpeg" });
+        }
+        maxDim = Math.round(maxDim * 0.78);
+        quality *= 0.78;
+      }
+      return file;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   }
 
   async function addFiles(list: FileList | null) {
     if (!list) return;
     const raw = Array.from(list).filter((f) => f.type === "application/pdf" || f.type.startsWith("image/"));
-    const compressed = await Promise.all(raw.map(compressImage));
-    const next = [...files, ...compressed];
-    const totalBytes = next.reduce((sum, file) => sum + file.size, 0);
-    if (totalBytes > MAX_UPLOAD_BYTES) {
-      setGenErr("The combined upload must be under 3 MB for this deployment. Please compress or split the PDF, or upload fewer pages.");
+    if (raw.length === 0) {
+      setGenErr("Choose a PDF, JPG, PNG or WEBP file.");
       return;
     }
-    setFiles(next);
     setGenErr(null);
+    setCompressing(true);
+    try {
+      const incoming = await Promise.all(raw.map(async (file) => {
+        if (file.type === "application/pdf" && file.size > 1024 * 1024) return compressPdf(file);
+        return compressImage(file);
+      }));
+      let next = [...files, ...incoming];
+      let totalBytes = next.reduce((sum, file) => sum + file.size, 0);
+      if (totalBytes > MAX_UPLOAD_BYTES) {
+        next = await Promise.all(next.map(async (file) => {
+          if (file.type === "application/pdf" && !file.name.includes("-compressed")) return compressPdf(file);
+          return compressImage(file);
+        }));
+        totalBytes = next.reduce((sum, file) => sum + file.size, 0);
+      }
+      if (totalBytes > MAX_UPLOAD_BYTES) throw new Error("The compressed files are still over 3 MB total. Split the PDF or upload fewer pages.");
+      setFiles(next);
+      setGenErr(null);
+    } catch (error) {
+      setGenErr(error instanceof Error ? error.message : "File compression failed. Try a smaller file.");
+    } finally {
+      setCompressing(false);
+    }
   }
 
   async function join(e: React.FormEvent) {
@@ -226,7 +322,7 @@ export default function Lobby() {
         >
           <div className="upload-icon mx-auto grid h-10 w-10 place-items-center rounded-xl bg-indigo-50 text-xl text-indigo-600">↑</div>
           <p className="mt-3 text-sm font-semibold">Drop your study pages here</p>
-          <p className="mt-1 text-xs text-slate-500">PDF or image files · Multiple files supported · Up to 19 MB</p>
+          <p className="mt-1 text-xs text-slate-500">PDF or image files · Automatically compresses large files · 3 MB target</p>
           <input
             ref={inputRef}
             type="file"
@@ -279,8 +375,8 @@ export default function Lobby() {
         {genErr && <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{genErr}</p>}
 
         <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-          <button type="button" className="btn-primary flex-1" disabled={generating} onClick={() => generate(false)}>
-            {generating ? (
+          <button type="button" className="btn-primary flex-1" disabled={generating || compressing} onClick={() => generate(false)}>
+            {compressing ? (\n              <>\n                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />\n                Compressing files…\n              </>\n            ) : generating ? (
               <>
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
                 Reading pages &amp; building MCQs (takes ~30s)...
@@ -289,7 +385,7 @@ export default function Lobby() {
               "Generate exam"
             )}
           </button>
-          <button type="button" className="btn-ghost" disabled={generating} onClick={() => generate(true)} title="Use the built-in sample question bank">
+          <button type="button" className="btn-ghost" disabled={generating || compressing} onClick={() => generate(true)} title="Use the built-in sample question bank">
             Use sample questions
           </button>
         </div>
