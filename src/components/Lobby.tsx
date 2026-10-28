@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { saveSession } from "@/lib/ui";
 
+const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
+
 function Seg<T extends string | number>({
   value,
   options,
@@ -102,7 +104,14 @@ export default function Lobby() {
     if (!list) return;
     const raw = Array.from(list).filter((f) => f.type === "application/pdf" || f.type.startsWith("image/"));
     const compressed = await Promise.all(raw.map(compressImage));
-    setFiles((prev) => [...prev, ...compressed]);
+    const next = [...files, ...compressed];
+    const totalBytes = next.reduce((sum, file) => sum + file.size, 0);
+    if (totalBytes > MAX_UPLOAD_BYTES) {
+      setGenErr("The combined upload must be under 3 MB for this deployment. Please compress or split the PDF, or upload fewer pages.");
+      return;
+    }
+    setFiles(next);
+    setGenErr(null);
   }
 
   async function join(e: React.FormEvent) {
@@ -141,7 +150,7 @@ export default function Lobby() {
       if (demo) fd.set("demo", "1");
       else files.forEach((f) => fd.append("files", f));
       const r = await fetch("/api/exams", { method: "POST", body: fd });
-      const d = await r.json().catch(() => ({ error: "Server error" }));
+      const d = await r.json().catch(() => ({ error: r.status === 413 ? "Upload too large for the hosting request limit. Compress or split the PDF and try again." : `Server error (HTTP ${r.status})` }));
       if (!r.ok) throw new Error(d.error || "Generation failed");
       saveSession(d.code, { token: d.token, name: d.name });
       if (d.warning) sessionStorage.setItem(`wme:warn:${d.code}`, d.warning);
@@ -243,7 +252,7 @@ export default function Lobby() {
                 </button>
               </li>
             ))}
-            <li className={`text-right text-xs ${totalMb > 19 ? "text-red-600" : "text-slate-400"}`}>Total {totalMb.toFixed(1)} MB</li>
+            <li className={`text-right text-xs ${totalMb > 3 ? "text-red-600" : "text-slate-400"}`}>Total {totalMb.toFixed(1)} MB · max 3 MB</li>
           </ul>
         )}
 
