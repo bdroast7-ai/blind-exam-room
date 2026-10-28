@@ -1,25 +1,47 @@
 @import "tailwindcss";
 
+:root { color-scheme: light; --ink: #172033; --muted: #64748b; --line: #e2e8f0; --accent: #5145e5; }
 body {
-  font-family: "Hind Siliguri", "Noto Sans Bengali", "SolaimanLipi", "Nirmala UI", system-ui, -apple-system,
-    "Segoe UI", Roboto, sans-serif;
+  font-family: "Hind Siliguri", "Noto Sans Bengali", "SolaimanLipi", "Nirmala UI", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: #f5f7fb;
+  color: var(--ink);
 }
-
-.card {
-  @apply rounded-2xl border border-slate-200 bg-white shadow-sm;
-}
-.btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
-}
-.btn-primary {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 bg-indigo-600 text-white hover:bg-indigo-700;
-}
-.btn-ghost {
-  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
-}
-.input {
-  @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100;
-}
-.seg {
-  @apply flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition;
+::selection { background: #e0e7ff; color: #312e81; }
+.card { @apply rounded-2xl border bg-white; border-color: #e3e8f1; box-shadow: 0 2px 5px rgb(15 23 42 / 0.025), 0 12px 28px rgb(15 23 42 / 0.025); }
+.btn { @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50; border-radius: 10px; }
+.btn-primary { @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50; background: var(--accent); border: 1px solid var(--accent); border-radius: 10px; box-shadow: 0 1px 2px rgb(49 46 129 / .12); }
+.btn-primary:hover { background: #4338ca; }
+.btn-ghost { @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50; border: 1px solid #d9e0eb; border-radius: 10px; background: white; color: #334155; }
+.btn-ghost:hover { background: #f8fafc; border-color: #c5cedd; }
+.input { @apply w-full border bg-white px-3 py-2.5 text-sm outline-none; border-color: #d8dfeb; border-radius: 10px; color: var(--ink); transition: border-color .15s, box-shadow .15s; }
+.input:focus { border-color: #8177f5; box-shadow: 0 0 0 3px rgb(99 102 241 / .12); }
+.seg { @apply flex-1 border px-3 py-2 text-sm font-medium transition; border-radius: 9px; border-color: #dce2ec; background: white; color: #475569; }
+.seg:hover { border-color: #b7b2fa; }
+.home-shell { max-width: 1180px; }
+.home-intro { padding: 0 2px; }
+.eyebrow, .section-kicker { color: #64748b; font-size: 10px; font-weight: 750; letter-spacing: .13em; }
+.eyebrow { display: flex; align-items: center; gap: 9px; }
+.eyebrow-dot { width: 7px; height: 7px; border-radius: 50%; background: #6257ed; box-shadow: 0 0 0 4px #e8e7ff; }
+.intro-grid { display: flex; align-items: end; justify-content: space-between; gap: 28px; }
+.intro-grid h1 { max-width: 690px; line-height: 1.13; letter-spacing: -.045em; color: #172033; }
+.intro-grid h1 span { color: #5145e5; }
+.intro-note { display: flex; align-items: center; gap: 12px; min-width: 235px; padding: 14px 16px; border: 1px solid #e1e5f0; border-radius: 13px; background: #fff; }
+.note-icon { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 10px; background: #eeedff; color: #5145e5; font-size: 20px; }
+.intro-note strong { display: block; font-size: 12px; color: #293247; }
+.intro-note p { margin-top: 3px; color: #778197; font-size: 11px; }
+.workflow { display: flex; flex-wrap: wrap; gap: 10px 24px; padding: 13px 0 0; border-top: 1px solid #e3e8f1; }
+.workflow li { display: flex; align-items: center; gap: 8px; color: #596579; font-size: 12px; }
+.workflow li span { color: #6257ed; font-size: 10px; font-weight: 800; letter-spacing: .04em; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.section-count { border: 1px solid #e2e8f0; border-radius: 7px; padding: 5px 8px; color: #64748b; font-size: 11px; }
+.history-row { min-width: 0; }
+.profile-chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #e1e5f0; border-radius: 8px; background: #fafaff; padding: 7px 10px; color: #5145e5; font-size: 12px; }
+.profile-chip:hover { border-color: #c7c3ff; background: #f2f1ff; }
+.home-footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 30px; padding-top: 15px; border-top: 1px solid #e2e8f0; color: #8a94a7; font-size: 11px; }
+header { background: rgb(255 255 255 / .94) !important; }
+@media (max-width: 700px) {
+  .intro-grid { align-items: start; flex-direction: column; gap: 16px; }
+  .intro-note { min-width: 0; width: 100%; }
+  .workflow { gap: 10px 16px; }
+  .home-footer { flex-direction: column; }
 }
