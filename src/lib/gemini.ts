@@ -74,7 +74,11 @@ export async function generateWithGemini(
 ): Promise<GeneratedQuestion[]> {
   const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!key) throw new Error("NO_KEY");
-  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+
+  const primaryModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+  // Flash-Lite is a lower-cost backup for temporary capacity/rate-limit errors.
+  const fallbackModel = process.env.GEMINI_FALLBACK_MODEL || "gemini-3.5-flash-lite";
+  const models = [...new Set([primaryModel, fallbackModel])];
 
   const body = {
     contents: [
@@ -89,30 +93,48 @@ export async function generateWithGemini(
     generationConfig: {
       responseMimeType: "application/json",
       responseSchema,
-      temperature: 0.4,
+      // Gemini 3.6+ ignores custom temperature and may reject deprecated sampling parameters.
     },
   };
 
-  // Retry up to 3 times for temporary 503 / high demand errors
+  // Retry transient errors with bounded exponential backoff, then try the backup model.
+  // Do not retry authentication, permission, invalid-request, or missing-model errors.
+  const retryableStatuses = new Set([408, 429, 500, 502, 503, 504]);
   let res: Response | null = null;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify(body),
-      },
-    );
+  let lastError = "";
 
-    if (res.ok || res.status !== 503) break;
-    // Wait 2 seconds before retrying on a 503
-    await new Promise((r) => setTimeout(r, 2000));
+  for (const model of models) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+          body: JSON.stringify(body),
+        },
+      );
+
+      if (res.ok) break;
+
+      const errorText = await res.text().catch(() => "");
+      lastError = `Gemini model ${model} returned HTTP ${res.status}: ${errorText.slice(0, 300)}`;
+
+      if (!retryableStatuses.has(res.status)) {
+        throw new Error(lastError);
+      }
+
+      if (attempt < 3) {
+        const exponentialDelay = Math.min(8000, 1000 * 2 ** (attempt - 1));
+        const jitter = Math.floor(Math.random() * 500);
+        await new Promise((resolve) => setTimeout(resolve, exponentialDelay + jitter));
+      }
+    }
+
+    if (res?.ok) break;
   }
 
-  if (!res || !res.ok) {
-    const t = await res?.text() || "";
-    throw new Error(`Gemini API error ${res?.status}: ${t.slice(0, 300)}`);
+  if (!res?.ok) {
+    throw new Error(lastError || "Gemini request failed without a response");
   }
 
   const data = await res.json();
