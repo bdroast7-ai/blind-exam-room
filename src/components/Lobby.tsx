@@ -104,16 +104,14 @@ export default function Lobby() {
     if (!list) return;
     const raw = Array.from(list).filter((f) => f.type === "application/pdf" || f.type.startsWith("image/"));
     const compressed = await Promise.all(raw.map(compressImage));
-    setFiles((prev) => {
-      const next = [...prev, ...compressed];
-      const size = next.reduce((sum, file) => sum + file.size, 0);
-      if (size > MAX_UPLOAD_BYTES) {
-        setGenErr("Upload is too large for the current server setup. Keep the combined PDF/images under 4 MB, or split/compress the PDF and try again.");
-        return prev;
-      }
-      setGenErr(null);
-      return next;
-    });
+    const next = [...files, ...compressed];
+    const size = next.reduce((sum, file) => sum + file.size, 0);
+    if (size > MAX_UPLOAD_BYTES) {
+      setGenErr("Upload is too large for the current server setup. Keep the combined PDF/images under 4 MB, or split/compress the PDF and try again.");
+      return;
+    }
+    setFiles(next);
+    setGenErr(null);
   }
 
   async function join(e: React.FormEvent) {
