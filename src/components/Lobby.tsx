@@ -376,7 +376,12 @@ export default function Lobby() {
 
         <div className="mt-5 flex flex-col gap-2 sm:flex-row">
           <button type="button" className="btn-primary flex-1" disabled={generating || compressing} onClick={() => generate(false)}>
-            {compressing ? (\n              <>\n                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />\n                Compressing files…\n              </>\n            ) : generating ? (
+            {compressing ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                Compressing files…
+              </>
+            ) : generating ? (
               <>
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
                 Reading pages &amp; building MCQs (takes ~30s)...
