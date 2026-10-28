@@ -53,13 +53,14 @@ export function sanitizeQuestions(raw: unknown): GeneratedQuestion[] {
   const out: GeneratedQuestion[] = [];
   for (const q of arr) {
     const o = q as Record<string, unknown>;
-    const options = Array.isArray(o.options) ? o.options.map((x) => String(x)).slice(0, 4) : [];
+    const options = Array.isArray(o.options) ? o.options.map((x) => String(x).trim()).slice(0, 4) : [];
+    const question = String(o.question ?? "").trim();
     const ci = Number(o.correctIndex);
-    if (!o.question || options.length !== 4 || !(ci >= 0 && ci <= 3)) continue;
+    if (!question || options.length !== 4 || options.some((option) => !option) || !Number.isInteger(ci) || ci < 0 || ci > 3) continue;
     out.push({
       subject: normalizeSubject(String(o.subject ?? "")),
       subTopic: String(o.subTopic ?? "General").trim() || "General",
-      question: String(o.question).trim(),
+      question,
       options,
       correctIndex: ci,
       explanation: String(o.explanation ?? "").trim() || "ব্যাখ্যা পাওয়া যায়নি।",
