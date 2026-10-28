@@ -5,8 +5,16 @@ import { useRouter } from "next/navigation";
 import { saveSession } from "@/lib/ui";
 
 const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
-const PDFJS_SCRIPT = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-const JSPDF_SCRIPT = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js";
+const PDFJS_SOURCES = [
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",
+  "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js",
+  "https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js",
+];
+const JSPDF_SOURCES = [
+  "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js",
+  "https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js",
+  "https://unpkg.com/jspdf@2.5.2/dist/jspdf.umd.min.js",
+];
 
 function loadScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -22,9 +30,22 @@ function loadScript(src: string): Promise<void> {
     script.async = true;
     script.dataset.compressorSrc = src;
     script.onload = () => { script.dataset.loaded = "true"; resolve(); };
-    script.onerror = () => { script.remove(); reject(new Error("Could not load the browser PDF compressor. Check your internet connection and retry.")); };
+    script.onerror = () => { script.remove(); reject(new Error("Could not load PDF compressor source.")); };
     document.head.appendChild(script);
   });
+}
+
+async function loadFirstAvailable(sources: string[]): Promise<string> {
+  let lastError: unknown;
+  for (const src of sources) {
+    try {
+      await loadScript(src);
+      return src;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw new Error("Could not load the browser PDF compressor from any source. Check your connection or try again.");
 }
 
 type PdfPage = {
@@ -44,12 +65,12 @@ type JsPdfDoc = {
 type JsPdfApi = { jsPDF: new (options: { unit: string; format: number[]; compress: boolean }) => JsPdfDoc };
 
 async function compressPdf(file: File): Promise<File> {
-  await Promise.all([loadScript(PDFJS_SCRIPT), loadScript(JSPDF_SCRIPT)]);
+  const [pdfJsSource] = await Promise.all([loadFirstAvailable(PDFJS_SOURCES), loadFirstAvailable(JSPDF_SOURCES)]);
   const globals = window as unknown as { pdfjsLib?: PdfJsApi; jspdf?: JsPdfApi };
   const pdfjs = globals.pdfjsLib;
   const JsPDF = globals.jspdf && globals.jspdf.jsPDF;
   if (!pdfjs || !JsPDF) throw new Error("PDF compressor failed to initialize. Reload the page and retry.");
-  pdfjs.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  pdfjs.GlobalWorkerOptions.workerSrc = pdfJsSource.replace(/pdf\.min\.js$/, "pdf.worker.min.js");
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
   if (pdf.numPages > 30) throw new Error("This PDF has more than 30 pages. Split it into smaller PDFs and upload each part.");
   const presets = [{ scale: 1.35, quality: 0.7 }, { scale: 1.05, quality: 0.55 }, { scale: 0.85, quality: 0.45 }];
