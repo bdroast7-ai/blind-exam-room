@@ -195,7 +195,7 @@ export default function Lobby() {
       let totalBytes = next.reduce((sum, file) => sum + file.size, 0);
       if (totalBytes > MAX_UPLOAD_BYTES) {
         next = await Promise.all(next.map(async (file) => {
-          if (file.type === "application/pdf" && !file.name.includes("-compressed")) return compressPdf(file);
+          if (file.type === "application/pdf") return compressPdf(file);
           return compressImage(file);
         }));
         totalBytes = next.reduce((sum, file) => sum + file.size, 0);
@@ -348,7 +348,7 @@ export default function Lobby() {
                 </button>
               </li>
             ))}
-            <li className={`text-right text-xs ${totalMb > 3 ? "text-red-600" : "text-slate-400"}`}>Total {totalMb.toFixed(1)} MB · max 3 MB</li>
+            <li className={`text-right text-xs ${totalMb > 3 ? "text-red-600" : "text-slate-400"}`}>Total {totalMb.toFixed(1)} MB · target max 3 MB</li>
           </ul>
         )}
 
