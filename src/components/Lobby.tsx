@@ -185,8 +185,7 @@ export default function Lobby() {
       <div className="card create-card p-5 sm:p-6 lg:col-span-3">
         <p className="section-kicker">HOST A NEW SESSION</p><h2 className="mt-1 text-xl font-bold tracking-tight">Create an exam</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Upload this week&apos;s pages from your Bangla, English, Math &amp; GK books. Gemini builds tagged MCQs with
-          hidden explanations.
+          Upload study material and turn it into a timed MCQ challenge. Answers stay hidden until the session ends.
         </p>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
