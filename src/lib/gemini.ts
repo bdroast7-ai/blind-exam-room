@@ -98,40 +98,41 @@ export async function generateWithGemini(
     },
   };
 
-  // Retry transient errors with bounded exponential backoff, then try the backup model.
-  // Do not retry authentication, permission, invalid-request, or missing-model errors.
+  // Bound each upstream request so a slow Gemini response cannot hold the
+  // Vercel function open until its gateway timeout. Try the backup model once
+  // when the primary is overloaded or times out; the API route handles demo fallback.
   const retryableStatuses = new Set([408, 429, 500, 502, 503, 504]);
   let res: Response | null = null;
   let lastError = "";
 
   for (const model of models) {
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
       res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": key },
           body: JSON.stringify(body),
+          signal: AbortSignal.timeout(20000),
         },
       );
-
-      if (res.ok) break;
-
-      const errorText = await res.text().catch(() => "");
-      lastError = `Gemini model ${model} returned HTTP ${res.status}: ${errorText.slice(0, 300)}`;
-
-      if (!retryableStatuses.has(res.status)) {
-        throw new Error(lastError);
-      }
-
-      if (attempt < 3) {
-        const exponentialDelay = Math.min(8000, 1000 * 2 ** (attempt - 1));
-        const jitter = Math.floor(Math.random() * 500);
-        await new Promise((resolve) => setTimeout(resolve, exponentialDelay + jitter));
-      }
+    } catch (error) {
+      lastError = error instanceof Error && error.name === "TimeoutError"
+        ? `Gemini model ${model} timed out after 20 seconds`
+        : `Gemini model ${model} request failed: ${error instanceof Error ? error.message : String(error)}`;
+      // A timeout/network failure can be transient, so try the backup model.
+      continue;
     }
 
-    if (res?.ok) break;
+    if (res.ok) break;
+
+    const errorText = await res.text().catch(() => "");
+    lastError = `Gemini model ${model} returned HTTP ${res.status}: ${errorText.slice(0, 300)}`;
+
+    if (!retryableStatuses.has(res.status)) {
+      throw new Error(lastError);
+    }
+    // Move directly to the backup model instead of repeating slow requests.
   }
 
   if (!res?.ok) {
