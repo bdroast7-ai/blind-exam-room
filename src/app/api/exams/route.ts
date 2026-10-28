@@ -8,7 +8,7 @@ import type { GeneratedQuestion } from "@/lib/types";
 export const dynamic = "force-dynamic";
 export const maxDuration = 180;
 
-const MAX_BYTES = 19 * 1024 * 1024;
+const MAX_BYTES = 4 * 1024 * 1024;
 
 export async function POST(req: Request) {
   let form: FormData;
