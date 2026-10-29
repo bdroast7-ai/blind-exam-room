@@ -61,7 +61,7 @@ export function sanitizeQuestions(raw: unknown): GeneratedQuestion[] {
   for (const q of arr) {
     if (!q || typeof q !== "object") continue;
     const o = q as Record<string, unknown>;
-    const options = Array.isArray(o.options) ? o.options.map((value) => cleanText(value).replace(/^(?:[কখগঘ]|[A-D])\\s*(?:[.)ঃ:]\\s*|(?=\\$))/i, "").trim()).slice(0, 4) : [];
+    const options = Array.isArray(o.options) ? o.options.map((value) => cleanText(value).replace(/^(?:[কখগঘ]|[A-D])(?=\\s|[.)ঃ:]|\\()/i, "").trim()).slice(0, 4) : [];
     const question = cleanText(o.question);
     const ci = Number(o.correctIndex);
     if (!question || options.length !== 4 || options.some((option) => !option) || new Set(options.map((x) => x.toLocaleLowerCase())).size !== 4 || !Number.isInteger(ci) || ci < 0 || ci > 3) continue;
