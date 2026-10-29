@@ -32,9 +32,9 @@ function normalizeSubject(s: string): Subject {
 
 function cleanText(value: unknown): string {
   return String(value ?? "")
-    .replace(/\\r?\\n/g, " ")
-    .replace(/\\*\\*|__|`/g, "")
-    .replace(/[ \\t]+/g, " ")
+    .replace(/\r?\n/g, " ")
+    .replace(/\*\*|__|`/g, "")
+    .replace(/[ \t]+/g, " ")
     .trim();
 }
 
