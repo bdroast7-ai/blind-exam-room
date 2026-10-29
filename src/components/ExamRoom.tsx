@@ -70,16 +70,15 @@ export default function ExamRoom({ code }: { code: string }) {
   });
 
   async function pick(qid: number, choice: number) {
+    // A submitted answer is final. The API enforces this too, so refreshing
+    // or sending a second request cannot change the stored answer.
+    if (answers[String(qid)] !== undefined || state?.me?.submitted) return;
     const prev = answers;
-    const next = { ...answers };
-    const clear = next[String(qid)] === choice;
-    if (clear) delete next[String(qid)];
-    else next[String(qid)] = choice;
-    setAnswers(next);
+    setAnswers({ ...answers, [String(qid)]: choice });
     const r = await fetch(`/api/exams/${code}/answer`, {
       method: "POST",
       headers: authHeaders(),
-      body: JSON.stringify({ questionId: qid, choice: clear ? null : choice }),
+      body: JSON.stringify({ questionId: qid, choice }),
     }).catch(() => null);
     if (!r || !r.ok) {
       setAnswers(prev);
@@ -254,8 +253,10 @@ export default function ExamRoom({ code }: { code: string }) {
                     <button
                       key={i}
                       onClick={() => pick(q.id, i)}
-                      className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition ${
-                        mine === i ? "border-indigo-600 bg-indigo-50 ring-2 ring-indigo-100" : "border-slate-200 hover:border-indigo-300 hover:bg-slate-50"
+                      disabled={mine !== undefined || state.me.submitted}
+                      aria-pressed={mine === i}
+                      className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-80 ${
+                        mine === i ? "border-indigo-600 bg-indigo-50 ring-2 ring-indigo-100" : "border-slate-200 disabled:bg-slate-50 hover:border-indigo-300 hover:bg-slate-50"
                       }`}
                     >
                       <span
@@ -275,7 +276,7 @@ export default function ExamRoom({ code }: { code: string }) {
           <button className="btn-primary w-full py-3" onClick={submit}>
             Submit paper ({answered}/{qs.length} answered)
           </button>
-          <p className="pb-6 text-center text-xs text-slate-400">Tap a selected option again to clear it (skip = 0 marks).</p>
+          <p className="pb-6 text-center text-xs text-slate-400">Your first answer is locked and cannot be changed. Unanswered questions receive 0 marks.</p>
         </div>
       )}
     </div>
