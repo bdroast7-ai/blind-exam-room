@@ -3,14 +3,19 @@ import { SUBJECTS, type GeneratedQuestion, type Subject } from "./types";
 export type UploadedFile = { mimeType: string; base64: string; name: string };
 
 const PROMPT = (count: number) => `You are an expert Bangladeshi competitive-exam (BCS / Bank / Admission) MCQ setter and careful Bengali proofreader.
-The attached pages are photos/PDF pages from a student's Bangla, English, Math and General Knowledge (GK) books.
+The attached file(s) are the user's source material. They may contain only one subject, including a mathematics-only PDF.
 
-Create exactly ${count} high-quality multiple-choice questions STRICTLY based on the content of these pages.
-- If the pages contain MCQs, extract them accurately; otherwise create new MCQs from facts/concepts clearly supported by the pages.
-- Balance questions across the subjects that appear in the pages (Bangla, English, Math, GK).
+First identify which subject(s) actually appear in the uploaded material. Create exactly ${count} high-quality multiple-choice questions STRICTLY based on that material.
+- Never balance across subjects that are not present in the uploaded material. If the PDF contains only mathematics, ALL questions must be mathematics. Do not add Bangla grammar, English, GK, or general knowledge questions just to diversify the exam.
+- If the pages contain MCQs, extract them accurately; otherwise create new MCQs only from concepts, examples, and facts clearly supported by the pages. Do not use a generic question bank.
+- If the source does not contain enough distinct material for ${count} reliable questions, return only the number of high-quality questions it supports rather than inventing unrelated questions.
 - Each question must have exactly 4 short, clearly distinguishable options and exactly one correct option.
-- Write Bangla & GK questions in natural, correct Bangla; English questions in correct English; Math in the clearest language used on the page.
-- Proofread every question and option before returning. Do not substitute similar-looking Bengali words or confuse terms such as "বর্গ" and "বর্ণ". If a source word or fact is unclear, do not guess; create a different question supported by clear content.
+- Write questions in natural, correct Bangla when the source is Bangla; use correct English when the source is English. For mathematics, preserve the source's level and terminology.
+- Proofread every question and option for both spelling AND meaning. Check that the full sentence makes sense for the subject and that the question actually asks a solvable, unambiguous thing.
+- For mathematics, verify the mathematical relationship before returning the question. For example, consecutive integers' squares differ by a difference of squares; a phrase such as "দুইটি ক্রমিক সংখ্যার বর্ণের অন্তর" is semantically invalid in a math problem and must not be emitted. If the intended source term cannot be confidently read, use a different clearly supported problem rather than guessing.
+- Never silently replace an unclear OCR word with a plausible-looking word unless context makes the correction unambiguous. Do not substitute similar-looking Bengali words such as "বর্গ" and "বর্ণ".
+- Use readable, standard mathematical notation. Avoid corrupted symbols, broken fractions, raw LaTeX, escaped Unicode, or fragments such as "undefined" or "NaN". Write expressions plainly, e.g. "9² − 8²" or "x + 2 = 5".
+- Do not output Markdown formatting such as **bold**, __underline__, backticks, or dollar-sign LaTeX delimiters in question or option text.
 - Use readable, standard mathematical notation. Avoid corrupted symbols, broken fractions, raw LaTeX, escaped Unicode, or fragments such as "undefined" or "NaN". Write expressions plainly, e.g. "9² − 8²" or "x + 2 = 5".
 - Do NOT include Markdown formatting such as **bold**, __underline__, backticks, bullet markers, or decorative quotation marks in question, option, subTopic, or explanation text.
 - Do NOT put option labels (ক/খ/গ/ঘ or A/B/C/D) inside option strings; the app displays the labels separately.
