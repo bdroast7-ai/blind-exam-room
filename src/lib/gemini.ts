@@ -38,18 +38,18 @@ function cleanText(value: unknown): string {
     "n": "ⁿ", "i": "ⁱ", "p": "ᵖ",
   };
   return String(value ?? "")
-    .replace(/\\r?\\n/g, " ")
-    .replace(/\\*\\*|__|`/g, "")
-    .replace(/\\\\\(|\\\\\)|\\\\\[|\\\\\]/g, "")
-    .replace(/\\\\(?:cdot|times)/g, " × ")
-    .replace(/\\\\(?:minus)/g, " − ")
-    .replace(/\\\^\{([^}]+)\}/g, (_, exponent: string) =>
+    .replace(/\r?\n/g, " ")
+    .replace(/\*\*|__|\x60/g, "")
+    .replace(/\\[()[\]]/g, "")
+    .replace(/\\(?:cdot|times)/g, " × ")
+    .replace(/\\minus/g, " − ")
+    .replace(/\^\{([^}]+)\}/g, (_, exponent: string) =>
       [...exponent].map((char) => superscript[char] ?? char).join(""),
     )
-    .replace(/\\\^([0-9np])/g, (_, exponent: string) => superscript[exponent] ?? exponent)
-    .replace(/\\\\(?:left|right)/g, "")
+    .replace(/\^([0-9np])/g, (_, exponent: string) => superscript[exponent] ?? exponent)
+    .replace(/\\(?:left|right)/g, "")
     .replace(/\$/g, "")
-    .replace(/\\\\(?:text|mathrm)\{([^}]+)\}/g, "$1")
+    .replace(/\\(?:text|mathrm)\{([^}]+)\}/g, "$1")
     .replace(/[ \t]+/g, " ")
     .trim();
 }
