@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { exams, players, questions } from "@/db/schema";
 import { demoQuestions } from "@/lib/demoBank";
 import { generateCode, newToken, normalizePlayerName } from "@/lib/exam";
-import { generateWithGemini, type UploadedFile } from "@/lib/gemini";
+import { generateWithOpenRouter, type UploadedFile } from "@/lib/gemini";
 import type { GeneratedQuestion } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -50,22 +50,22 @@ export async function POST(req: Request) {
   }
 
   let qs: GeneratedQuestion[] = [];
-  let source = "gemini";
+  let source = "openrouter";
   let warning: string | null = null;
   if (useDemo) {
     qs = demoQuestions(questionCount);
     source = "demo";
   } else {
     try {
-      qs = await generateWithGemini(files, questionCount);
-      if (qs.length === 0) throw new Error("Gemini returned no usable questions");
-      if (qs.length < questionCount) warning = `Gemini produced ${qs.length} valid questions from your pages.`;
+      qs = await generateWithOpenRouter(files, questionCount);
+      if (qs.length === 0) throw new Error("OpenRouter returned no usable questions");
+      if (qs.length < questionCount) warning = `OpenRouter produced ${qs.length} valid questions from your pages.`;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       warning =
-        msg === "NO_KEY"
-          ? "GEMINI_API_KEY is not configured on the server — using the built-in demo question bank."
-          : `Gemini failed (${msg.slice(0, 160)}) — using the built-in demo question bank.`;
+        msg === "NO_OPENROUTER_KEY"
+          ? "OPENROUTER_API_KEY is not configured on the server — using the built-in demo question bank."
+          : `OpenRouter failed (${msg.slice(0, 160)}) — using the built-in demo question bank.`;
       qs = demoQuestions(questionCount);
       source = "demo";
     }
