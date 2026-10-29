@@ -69,85 +69,91 @@ export function sanitizeQuestions(raw: unknown): GeneratedQuestion[] {
   return out;
 }
 
-export async function generateWithGemini(
+export async function generateWithOpenRouter(
   files: UploadedFile[],
   count: number,
 ): Promise<GeneratedQuestion[]> {
-  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!key) throw new Error("NO_KEY");
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) throw new Error("NO_OPENROUTER_KEY");
 
-  const primaryModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-  // Flash-Lite is a lower-cost backup for temporary capacity/rate-limit errors.
-  const fallbackModel = process.env.GEMINI_FALLBACK_MODEL || "gemini-3.5-flash-lite";
-  const models = [...new Set([primaryModel, fallbackModel])];
+  const model = process.env.OPENROUTER_MODEL || "nvidia/nemotron-3.5-super-vl:free";
+  const contentParts: Array<Record<string, unknown>> = [
+    { type: "text", text: PROMPT(count) },
+  ];
 
-  const body = {
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: PROMPT(count) },
-          ...files.map((f) => ({ inline_data: { mime_type: f.mimeType, data: f.base64 } })),
-        ],
-      },
-    ],
-    generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema,
-      // Gemini 3.6+ ignores custom temperature and may reject deprecated sampling parameters.
-    },
-  };
-
-  // Bound each upstream request so a slow Gemini response cannot hold the
-  // Vercel function open until its gateway timeout. Try the backup model once
-  // when the primary is overloaded or times out; the API route handles demo fallback.
-  const retryableStatuses = new Set([408, 429, 500, 502, 503, 504]);
-  let res: Response | null = null;
-  let lastError = "";
-
-  for (const model of models) {
-    try {
-      res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(45000),
+  for (const file of files) {
+    if (file.mimeType === "application/pdf") {
+      contentParts.push({
+        type: "file",
+        file: {
+          filename: file.name || "study-pages.pdf",
+          file_data: `data:application/pdf;base64,${file.base64}`,
         },
-      );
-    } catch (error) {
-      lastError = error instanceof Error && error.name === "TimeoutError"
-        ? `Gemini model ${model} timed out after 45 seconds`
-        : `Gemini model ${model} request failed: ${error instanceof Error ? error.message : String(error)}`;
-      // A timeout/network failure can be transient, so try the backup model.
-      continue;
+      });
+    } else if (file.mimeType.startsWith("image/")) {
+      contentParts.push({
+        type: "image_url",
+        image_url: {
+          url: `data:${file.mimeType};base64,${file.base64}`,
+        },
+      });
     }
-
-    if (res.ok) break;
-
-    const errorText = await res.text().catch(() => "");
-    lastError = `Gemini model ${model} returned HTTP ${res.status}: ${errorText.slice(0, 300)}`;
-
-    if (!retryableStatuses.has(res.status)) {
-      throw new Error(lastError);
-    }
-    // Move directly to the backup model instead of repeating slow requests.
   }
 
-  if (!res?.ok) {
-    throw new Error(lastError || "Gemini request failed without a response");
+  let res: Response;
+  try {
+    res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+        "HTTP-Referer": "https://blind-exam-room.vercel.app",
+        "X-Title": "Blind Exam Room",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          {
+            role: "user",
+            content: contentParts,
+          },
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 10000,
+      }),
+      signal: AbortSignal.timeout(90000),
+    });
+  } catch (error) {
+    const detail = error instanceof Error && error.name === "TimeoutError"
+      ? "timed out after 90 seconds"
+      : error instanceof Error ? error.message : String(error);
+    throw new Error(`OpenRouter request ${detail}`);
+  }
+
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => "");
+    throw new Error(`OpenRouter model ${model} returned HTTP ${res.status}: ${errorText.slice(0, 300)}`);
   }
 
   const data = await res.json();
-  const text: string =
-    data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
+  const messageContent = data?.choices?.[0]?.message?.content;
+  const text = typeof messageContent === "string"
+    ? messageContent
+    : Array.isArray(messageContent)
+      ? messageContent.map((part: { text?: string }) => part?.text ?? "").join("")
+      : "";
+  if (!text.trim()) throw new Error("OpenRouter returned an empty response");
+
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
-    const m = text.match(/\{[\s\S]*\}/);
-    parsed = m ? JSON.parse(m[0]) : {};
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("OpenRouter did not return valid JSON");
+    parsed = JSON.parse(match[0]);
   }
-  return sanitizeQuestions(parsed).slice(0, count);
+
+  const questions = sanitizeQuestions(parsed).slice(0, count);
+  if (questions.length === 0) throw new Error("OpenRouter returned no usable questions");
+  return questions;
 }
