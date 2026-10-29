@@ -27,11 +27,23 @@ First identify which subject(s) actually appear in the uploaded material. Create
 - Shuffle the position of the correct answer across questions.
 Return ONLY valid JSON matching the schema.`;
 
-function normalizeSubject(s: string): Subject {
+function normalizeSubject(s: string, question = "", subTopic = ""): Subject {
   const v = (s || "").toLowerCase();
+  const context = `${question} ${subTopic}`.toLowerCase();
+
   if (v.includes("bang") || v.includes("বাংলা")) return "Bangla";
   if (v.includes("eng") || v.includes("ইংরে")) return "English";
   if (v.includes("math") || v.includes("গণিত")) return "Math";
+
+  // Some models return the Bangla display label "সাধারণ জ্ঞান" even for math MCQs.
+  // Infer Math from the question/topic when the supplied subject label is generic or incorrect.
+  const mathSignals = [
+    "সংখ্যা", "অঙ্ক", "বর্গ", "বর্গমূল", "মূলদ", "অমূলদ", "ভগ্নাংশ",
+    "গুণনীয়ক", "গুণিতক", "মৌলিক", "ক্রমিক", "সমষ্টি", "অন্তর",
+    "সমীকরণ", "শতকরা", "অনুপাত", "লব", "হর", "বাস্তব সংখ্যা",
+    "√", "∛", "=", "×", "÷", "²", "³", "fraction", "prime number",
+  ];
+  if (mathSignals.some((term) => context.includes(term))) return "Math";
   return "GK";
 }
 
@@ -68,11 +80,24 @@ export function sanitizeQuestions(raw: unknown): GeneratedQuestion[] {
     const o = q as Record<string, unknown>;
     const options = Array.isArray(o.options) ? o.options.map((value) => cleanText(value).replace(/^(?:[কখগঘ]|[A-D])(?=\s|[.)ঃ:])/i, "").trim()).slice(0, 4) : [];
     const question = cleanText(o.question);
+    const subTopic = cleanText(o.subTopic) || "General";
     const ci = Number(o.correctIndex);
     if (!question || options.length !== 4 || options.some((option) => !option) || new Set(options.map((x) => x.toLocaleLowerCase())).size !== 4 || !Number.isInteger(ci) || ci < 0 || ci > 3) continue;
+
+    // Reject obvious Bengali OCR/word-substitution errors in common math phrasing.
+    const lowerQuestion = question.toLowerCase();
+    const looksMathematical = normalizeSubject(String(o.subject ?? ""), question, subTopic) === "Math";
+    const corruptedMathPhrase =
+      looksMathematical &&
+      (lowerQuestion.includes("বর্ণের অন্তর") ||
+       lowerQuestion.includes("বর্ণের সমষ্টি") ||
+       lowerQuestion.includes("অস্তরফল") ||
+       lowerQuestion.includes("betegুণ"));
+    if (corruptedMathPhrase) continue;
+
     out.push({
-      subject: normalizeSubject(String(o.subject ?? "")),
-      subTopic: cleanText(o.subTopic) || "General",
+      subject: normalizeSubject(String(o.subject ?? ""), question, subTopic),
+      subTopic,
       question,
       options,
       correctIndex: ci,
