@@ -96,13 +96,15 @@ export async function generateWithOpenRouter(
           },
         ],
         response_format: { type: "json_object" },
-        max_tokens: 10000,
+        // This model enables reasoning by default; disabling it reduces latency for structured MCQ generation.
+        reasoning: { enabled: false },
+        max_tokens: 8000,
       }),
-      signal: AbortSignal.timeout(90000),
+      signal: AbortSignal.timeout(105000),
     });
   } catch (error) {
-    const detail = error instanceof Error && error.name === "TimeoutError"
-      ? "timed out after 90 seconds"
+    const detail = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")
+      ? "timed out after 105 seconds (the free model may be overloaded or generating too much output)"
       : error instanceof Error ? error.message : String(error);
     throw new Error(`OpenRouter request ${detail}`);
   }
