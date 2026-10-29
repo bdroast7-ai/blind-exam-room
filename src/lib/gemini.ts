@@ -50,13 +50,19 @@ export function sanitizeQuestions(raw: unknown): GeneratedQuestion[] {
 export async function generateWithOpenRouter(
   files: UploadedFile[],
   count: number,
+  excludedQuestions: string[] = [],
 ): Promise<GeneratedQuestion[]> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error("NO_OPENROUTER_KEY");
 
   const model = process.env.OPENROUTER_MODEL || "nvidia/nemotron-3.5-super-vl:free";
   const contentParts: Array<Record<string, unknown>> = [
-    { type: "text", text: PROMPT(count) },
+    { type: "text", text: [
+      PROMPT(count),
+      excludedQuestions.length
+        ? "This is a retry to fill missing questions. Do not repeat or paraphrase any of these existing questions. Create genuinely different questions based on the uploaded pages:\\n" + excludedQuestions.map((q, i) => `${i + 1}. ${q}`).join("\\n")
+        : "",
+    ].filter(Boolean).join("\\n\\n") },
   ];
 
   for (const file of files) {
@@ -132,7 +138,38 @@ export async function generateWithOpenRouter(
     parsed = JSON.parse(match[0]);
   }
 
-  const questions = sanitizeQuestions(parsed).slice(0, count);
+  const normalized = (value: string) =>
+    value.toLocaleLowerCase().replace(/[^\\p{L}\\p{N}]+/gu, " ").trim();
+  const uniqueQuestions = (items: GeneratedQuestion[]) => {
+    const seen = new Set<string>();
+    return items.filter((q) => {
+      const key = normalized(q.question);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  const questions = uniqueQuestions(sanitizeQuestions(parsed)).slice(0, count);
   if (questions.length === 0) throw new Error("OpenRouter returned no usable questions");
+
+  // If validation removed some generated items, make one targeted follow-up request
+  // for the missing questions, explicitly excluding questions already accepted.
+  if (questions.length < count && excludedQuestions.length === 0) {
+    const missing = count - questions.length;
+    const retryCount = Math.min(count, missing + 2);
+    try {
+      const extra = await generateWithOpenRouter(
+        files,
+        retryCount,
+        questions.map((q) => q.question),
+      );
+      return uniqueQuestions([...questions, ...extra]).slice(0, count);
+    } catch (error) {
+      // Keep the valid questions from the first response if the targeted retry fails.
+      console.error("OpenRouter missing-question retry failed", error);
+    }
+  }
+
   return questions;
 }
