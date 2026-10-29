@@ -17,7 +17,7 @@ export const exams = pgTable("exams", {
   durationMin: integer("duration_min").notNull(),
   negativeMark: real("negative_mark").notNull().default(0),
   status: text("status").notNull().default("lobby"), // lobby | running | finished
-  source: text("source").notNull().default("gemini"), // gemini | demo
+  source: text("source").notNull().default("openrouter"), // openrouter | demo
   hostName: text("host_name"),
   startedAt: timestamp("started_at", { withTimezone: true }),
   endsAt: timestamp("ends_at", { withTimezone: true }),
