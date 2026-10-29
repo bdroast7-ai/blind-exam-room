@@ -253,7 +253,7 @@ export default function ExamRoom({ code }: { code: string }) {
                     <button
                       key={i}
                       onClick={() => pick(q.id, i)}
-                      disabled={mine !== undefined || state.me.submitted}
+                      disabled={mine !== undefined || !!state.me?.submitted}
                       aria-pressed={mine === i}
                       className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-80 ${
                         mine === i ? "border-indigo-600 bg-indigo-50 ring-2 ring-indigo-100" : "border-slate-200 disabled:bg-slate-50 hover:border-indigo-300 hover:bg-slate-50"
