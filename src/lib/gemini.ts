@@ -17,28 +17,6 @@ Create exactly ${count} high-quality multiple-choice questions STRICTLY based on
 - Shuffle the position of the correct answer across questions.
 Return ONLY JSON matching the schema.`;
 
-const responseSchema = {
-  type: "OBJECT",
-  properties: {
-    questions: {
-      type: "ARRAY",
-      items: {
-        type: "OBJECT",
-        properties: {
-          subject: { type: "STRING", enum: [...SUBJECTS] },
-          subTopic: { type: "STRING" },
-          question: { type: "STRING" },
-          options: { type: "ARRAY", items: { type: "STRING" } },
-          correctIndex: { type: "INTEGER" },
-          explanation: { type: "STRING" },
-        },
-        required: ["subject", "subTopic", "question", "options", "correctIndex", "explanation"],
-      },
-    },
-  },
-  required: ["questions"],
-};
-
 function normalizeSubject(s: string): Subject {
   const v = (s || "").toLowerCase();
   if (v.includes("bang") || v.includes("বাংলা")) return "Bangla";
