@@ -31,9 +31,25 @@ function normalizeSubject(s: string): Subject {
 }
 
 function cleanText(value: unknown): string {
+  const superscript: Record<string, string> = {
+    "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴",
+    "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹",
+    "+": "⁺", "-": "⁻", "=": "⁼", "(": "⁽", ")": "⁾",
+    "n": "ⁿ", "i": "ⁱ", "p": "ᵖ",
+  };
   return String(value ?? "")
-    .replace(/\r?\n/g, " ")
-    .replace(/\*\*|__|`/g, "")
+    .replace(/\\r?\\n/g, " ")
+    .replace(/\\*\\*|__|`/g, "")
+    .replace(/\\\\\(|\\\\\)|\\\\\[|\\\\\]/g, "")
+    .replace(/\\\\(?:cdot|times)/g, " × ")
+    .replace(/\\\\(?:minus)/g, " − ")
+    .replace(/\\\^\{([^}]+)\}/g, (_, exponent: string) =>
+      [...exponent].map((char) => superscript[char] ?? char).join(""),
+    )
+    .replace(/\\\^([0-9np])/g, (_, exponent: string) => superscript[exponent] ?? exponent)
+    .replace(/\\\\(?:left|right)/g, "")
+    .replace(/\$/g, "")
+    .replace(/\\\\(?:text|mathrm)\{([^}]+)\}/g, "$1")
     .replace(/[ \t]+/g, " ")
     .trim();
 }
@@ -45,7 +61,7 @@ export function sanitizeQuestions(raw: unknown): GeneratedQuestion[] {
   for (const q of arr) {
     if (!q || typeof q !== "object") continue;
     const o = q as Record<string, unknown>;
-    const options = Array.isArray(o.options) ? o.options.map(cleanText).slice(0, 4) : [];
+    const options = Array.isArray(o.options) ? o.options.map((value) => cleanText(value).replace(/^(?:[কখগঘ]|[A-D])\\s*(?:[.)ঃ:]\\s*|(?=\\$))/i, "").trim()).slice(0, 4) : [];
     const question = cleanText(o.question);
     const ci = Number(o.correctIndex);
     if (!question || options.length !== 4 || options.some((option) => !option) || new Set(options.map((x) => x.toLocaleLowerCase())).size !== 4 || !Number.isInteger(ci) || ci < 0 || ci > 3) continue;
