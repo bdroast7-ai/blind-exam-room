@@ -60,9 +60,9 @@ export async function generateWithOpenRouter(
     { type: "text", text: [
       PROMPT(count),
       excludedQuestions.length
-        ? "This is a retry to fill missing questions. Do not repeat or paraphrase any of these existing questions. Create genuinely different questions based on the uploaded pages:\\n" + excludedQuestions.map((q, i) => `${i + 1}. ${q}`).join("\\n")
+        ? "This is a retry to fill missing questions. Do not repeat or paraphrase any of these existing questions. Create genuinely different questions based on the uploaded pages:\n" + excludedQuestions.map((q, i) => `${i + 1}. ${q}`).join("\n")
         : "",
-    ].filter(Boolean).join("\\n\\n") },
+    ].filter(Boolean).join("\n\n") },
   ];
 
   for (const file of files) {
@@ -139,7 +139,7 @@ export async function generateWithOpenRouter(
   }
 
   const normalized = (value: string) =>
-    value.toLocaleLowerCase().replace(/[^\\p{L}\\p{N}]+/gu, " ").trim();
+    value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
   const uniqueQuestions = (items: GeneratedQuestion[]) => {
     const seen = new Set<string>();
     return items.filter((q) => {
