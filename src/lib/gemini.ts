@@ -113,12 +113,12 @@ export async function generateWithGemini(
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": key },
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(20000),
+          signal: AbortSignal.timeout(45000),
         },
       );
     } catch (error) {
       lastError = error instanceof Error && error.name === "TimeoutError"
-        ? `Gemini model ${model} timed out after 20 seconds`
+        ? `Gemini model ${model} timed out after 45 seconds`
         : `Gemini model ${model} request failed: ${error instanceof Error ? error.message : String(error)}`;
       // A timeout/network failure can be transient, so try the backup model.
       continue;
