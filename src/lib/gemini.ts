@@ -2,20 +2,25 @@ import { SUBJECTS, type GeneratedQuestion, type Subject } from "./types";
 
 export type UploadedFile = { mimeType: string; base64: string; name: string };
 
-const PROMPT = (count: number) => `You are an expert Bangladeshi competitive-exam (BCS / Bank / Admission) MCQ setter.
-The attached pages are photos/PDF pages from a student's Bangla, English, Math and General Knowledge (GK) books studied this week.
+const PROMPT = (count: number) => `You are an expert Bangladeshi competitive-exam (BCS / Bank / Admission) MCQ setter and careful Bengali proofreader.
+The attached pages are photos/PDF pages from a student's Bangla, English, Math and General Knowledge (GK) books.
 
 Create exactly ${count} high-quality multiple-choice questions STRICTLY based on the content of these pages.
-- If the pages contain MCQs, extract them; otherwise create new MCQs from the content.
+- If the pages contain MCQs, extract them accurately; otherwise create new MCQs from facts/concepts clearly supported by the pages.
 - Balance questions across the subjects that appear in the pages (Bangla, English, Math, GK).
-- Each question has exactly 4 options and exactly one correct option.
-- Write Bangla & GK questions in Bangla; English questions in English; Math may be Bangla or English as on the page.
+- Each question must have exactly 4 short, clearly distinguishable options and exactly one correct option.
+- Write Bangla & GK questions in natural, correct Bangla; English questions in correct English; Math in the clearest language used on the page.
+- Proofread every question and option before returning. Do not substitute similar-looking Bengali words or confuse terms such as "বর্গ" and "বর্ণ". If a source word or fact is unclear, do not guess; create a different question supported by clear content.
+- Use readable, standard mathematical notation. Avoid corrupted symbols, broken fractions, raw LaTeX, escaped Unicode, or fragments such as "undefined" or "NaN". Write expressions plainly, e.g. "9² − 8²" or "x + 2 = 5".
+- Do NOT include Markdown formatting such as **bold**, __underline__, backticks, bullet markers, or decorative quotation marks in question, option, subTopic, or explanation text.
+- Do NOT put option labels (ক/খ/গ/ঘ or A/B/C/D) inside option strings; the app displays the labels separately.
+- Every option must be complete, readable, and belong to the same kind of answer (all numbers, all words, etc. where appropriate). Avoid near-duplicate or ambiguous options.
 - subject must be one of: Bangla, English, Math, GK.
 - subTopic must be a specific syllabus sub-topic, e.g. Bangla: সন্ধি, সমাস, বানান শুদ্ধিকরণ, কারক ও বিভক্তি, বাগধারা, সাহিত্য; English: Preposition, Right Form of Verbs, Synonym, Antonym, Narration, Voice; Math: শতকরা, লাভ-ক্ষতি, সুদকষা, ঐকিক নিয়ম, অনুপাত, বীজগণিত; GK: মুক্তিযুদ্ধ, বাংলাদেশ বিষয়াবলী, আন্তর্জাতিক বিষয়াবলী, ভূগোল, বিজ্ঞান.
 - correctIndex is 0-based (0=ক/A, 1=খ/B, 2=গ/C, 3=ঘ/D).
-- explanation must teach "why it is correct": for Math give step-by-step working plus a shortcut formula; for grammar give the exact rule; for GK give historical/factual context and book reference. Keep it 2-5 sentences.
+- explanation must teach why the answer is correct: for Math give correct step-by-step working plus a shortcut formula; for grammar give the exact rule; for GK give factual context only when supported. Keep it 2-5 concise sentences.
 - Shuffle the position of the correct answer across questions.
-Return ONLY JSON matching the schema.`;
+Return ONLY valid JSON matching the schema.`;
 
 function normalizeSubject(s: string): Subject {
   const v = (s || "").toLowerCase();
@@ -25,23 +30,32 @@ function normalizeSubject(s: string): Subject {
   return "GK";
 }
 
+function cleanText(value: unknown): string {
+  return String(value ?? "")
+    .replace(/\\r?\\n/g, " ")
+    .replace(/\\*\\*|__|`/g, "")
+    .replace(/[ \\t]+/g, " ")
+    .trim();
+}
+
 export function sanitizeQuestions(raw: unknown): GeneratedQuestion[] {
   const arr = (raw as { questions?: unknown[] })?.questions;
   if (!Array.isArray(arr)) return [];
   const out: GeneratedQuestion[] = [];
   for (const q of arr) {
+    if (!q || typeof q !== "object") continue;
     const o = q as Record<string, unknown>;
-    const options = Array.isArray(o.options) ? o.options.map((x) => String(x).trim()).slice(0, 4) : [];
-    const question = String(o.question ?? "").trim();
+    const options = Array.isArray(o.options) ? o.options.map(cleanText).slice(0, 4) : [];
+    const question = cleanText(o.question);
     const ci = Number(o.correctIndex);
-    if (!question || options.length !== 4 || options.some((option) => !option) || !Number.isInteger(ci) || ci < 0 || ci > 3) continue;
+    if (!question || options.length !== 4 || options.some((option) => !option) || new Set(options.map((x) => x.toLocaleLowerCase())).size !== 4 || !Number.isInteger(ci) || ci < 0 || ci > 3) continue;
     out.push({
       subject: normalizeSubject(String(o.subject ?? "")),
-      subTopic: String(o.subTopic ?? "General").trim() || "General",
+      subTopic: cleanText(o.subTopic) || "General",
       question,
       options,
       correctIndex: ci,
-      explanation: String(o.explanation ?? "").trim() || "ব্যাখ্যা পাওয়া যায়নি।",
+      explanation: cleanText(o.explanation) || "ব্যাখ্যা পাওয়া যায়নি।",
     });
   }
   return out;
