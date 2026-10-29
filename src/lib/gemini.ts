@@ -85,7 +85,6 @@ export async function generateWithOpenRouter(
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${key}`,
-        "HTTP-Referer": "https://blind-exam-room.vercel.app",
         "X-Title": "Blind Exam Room",
       },
       body: JSON.stringify({
